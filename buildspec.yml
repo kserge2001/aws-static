@@ -27,9 +27,6 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-
-  static_code_analysis:
-    commands:
       - echo Running static code analysis on HTML files...
       - npm install -g htmlhint  # Install HTML linting tool
       - htmlhint ./src/**/*.html  # Scan HTML files in the src directory
