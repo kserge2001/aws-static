@@ -20,6 +20,43 @@
 # artifacts:
 #     files: imagedefinitions.json
 
+# version: 0.2
+
+# phases:
+#   pre_build:
+#     commands:
+#       - echo Logging in to Amazon ECR...
+#       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+
+#       - echo Running static code analysis on HTML files...
+#       - npm install -g htmlhint  # Install HTML linting tool
+#       - htmlhint ./src/**/*.html --format=json > htmlhint-report.json  # Generate HTML linting report in JSON format
+#       - echo Static code analysis completed.
+
+#   build:
+#     commands:
+#       - echo Build started on `date`
+#       - echo Building the Docker image...
+#       - docker build --platform=linux/amd64 -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
+#       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
+#       - echo Scanning the Docker image for vulnerabilities...
+#       - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --format json --output trivy-report.json $IMAGE_REPO_NAME:$IMAGE_TAG
+#       - echo Container scan completed.
+
+#   post_build:
+#     commands:
+#       - echo Build completed on `date`
+#       - echo Pushing the Docker image...
+#       - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+#       - printf '[{"name":"webapp","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG > imagedefinitions.json
+
+# artifacts:
+#   files:
+#     - imagedefinitions.json
+#     - htmlhint-report.json  # HTML linting report
+#     - trivy-report.json    # Trivy vulnerability report
+
 version: 0.2
 
 phases:
@@ -33,6 +70,15 @@ phases:
       - htmlhint ./src/**/*.html --format=json > htmlhint-report.json  # Generate HTML linting report in JSON format
       - echo Static code analysis completed.
 
+      # Check HTML linting report for errors
+      - |
+        if [ $(jq '.[].messages | length' htmlhint-report.json) -gt 0 ]; then
+          echo "HTML linting errors found. Failing the build."
+          exit 1
+        else
+          echo "No HTML linting errors found. Proceeding to the next phase."
+        fi
+
   build:
     commands:
       - echo Build started on `date`
@@ -43,6 +89,15 @@ phases:
       - echo Scanning the Docker image for vulnerabilities...
       - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --format json --output trivy-report.json $IMAGE_REPO_NAME:$IMAGE_TAG
       - echo Container scan completed.
+
+      # Check Trivy report for vulnerabilities
+      - |
+        if [ $(jq '.Results[].Vulnerabilities | length' trivy-report.json) -gt 0 ]; then
+          echo "High or critical vulnerabilities found in the Docker image. Failing the build."
+          exit 1
+        else
+          echo "No high or critical vulnerabilities found. Proceeding to the next phase."
+        fi
 
   post_build:
     commands:
