@@ -41,9 +41,6 @@ phases:
       - echo Building the Docker image...
       - docker build --platform=linux/amd64 -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-
-  container_scan:
-    commands:
       - echo Scanning the Docker image for vulnerabilities...
       - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL $IMAGE_REPO_NAME:$IMAGE_TAG
       - echo Container scan completed.
