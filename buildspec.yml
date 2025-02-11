@@ -1,3 +1,25 @@
+# version: 0.2
+
+# phases:
+#   pre_build:
+#     commands:
+#       - echo Logging in to Amazon ECR...
+#       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+#   build:
+#     commands:
+#       - echo Build started on `date`
+#       - echo Building the Docker image...          
+#       - docker build --platform=linux/amd64  -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
+#       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG      
+#   post_build:
+#     commands:
+#       - echo Build completed on `date`
+#       - echo Pushing the Docker image...
+#       - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+#       - printf '[{"name":"webapp","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG > imagedefinitions.json
+# artifacts:
+#     files: imagedefinitions.json
+
 version: 0.2
 
 phases:
@@ -5,17 +27,33 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+
+  static_code_analysis:
+    commands:
+      - echo Running static code analysis on HTML files...
+      - npm install -g htmlhint  # Install HTML linting tool
+      - htmlhint ./src/**/*.html  # Scan HTML files in the src directory
+      - echo Static code analysis completed.
+
   build:
     commands:
       - echo Build started on `date`
-      - echo Building the Docker image...          
-      - docker build --platform=linux/amd64  -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
-      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG      
+      - echo Building the Docker image...
+      - docker build --platform=linux/amd64 -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
+  container_scan:
+    commands:
+      - echo Scanning the Docker image for vulnerabilities...
+      - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL $IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo Container scan completed.
+
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Pushing the Docker image...
       - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - printf '[{"name":"webapp","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG > imagedefinitions.json
+
 artifacts:
-    files: imagedefinitions.json
+  files: imagedefinitions.json
