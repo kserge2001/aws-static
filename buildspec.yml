@@ -27,9 +27,10 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+
       - echo Running static code analysis on HTML files...
       - npm install -g htmlhint  # Install HTML linting tool
-      - htmlhint ./src/**/*.html  # Scan HTML files in the src directory
+      - htmlhint ./src/**/*.html --format=json > htmlhint-report.json  # Generate HTML linting report in JSON format
       - echo Static code analysis completed.
 
   build:
@@ -38,8 +39,9 @@ phases:
       - echo Building the Docker image...
       - docker build --platform=linux/amd64 -t $IMAGE_REPO_NAME:$IMAGE_TAG -f DockerfileProd .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
       - echo Scanning the Docker image for vulnerabilities...
-      - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL $IMAGE_REPO_NAME:$IMAGE_TAG
+      - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --format json --output trivy-report.json $IMAGE_REPO_NAME:$IMAGE_TAG
       - echo Container scan completed.
 
   post_build:
@@ -50,4 +52,7 @@ phases:
       - printf '[{"name":"webapp","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
-  files: imagedefinitions.json
+  files:
+    - imagedefinitions.json
+    - htmlhint-report.json  # HTML linting report
+    - trivy-report.json    # Trivy vulnerability report
